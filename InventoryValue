@@ -1,0 +1,290 @@
+
+static void AT_VR_InventValue ()
+{
+    Dialog dialog = new Dialog("@SYS80661");
+    dialogfield dialogDesdeFecha = dialog.addfield(typeid(DateFinancial), "@SYS80661");
+    dialogfield dialogHastaFecha = dialog.addfield(typeid(DateFinancial), "@SYS35904");
+     dialogfield dialogAlmacen    = dialog.addField(typeid(InventLocationId),"Almacén");
+
+    DateFinancial           _DesdeFecha;
+    DateFinancial           _HastaFecha;
+    InventTrans             _InventTrans;
+    InventTrans             _InventTrans2;
+    AT_VR_QInventValue       _QInventValue;
+    QInventValueF           _QInventValueFinal;
+    InventTable             _InventTable;
+    SysReportRun            reportRun;
+    Args args = new Args();
+    InventDim               _InventDim;
+    InventDim               _InventDim2;
+     InventLocationId        _InventLocationId;
+
+    InventJournaltable      _InventJournaltable;
+    Inventtrans             _Inventtrans3;
+    InventPosting           _InventPosting;
+
+     #AVIFiles
+    SysOperationProgress    progress;
+
+    ;
+
+    SysOperationProgress::clearCache();
+    progress = SysOperationProgress::newGeneral(#AviUpdate, "Procesando...", 0);
+    progress.setText("..Actualizando..");
+
+
+    if (dialog.run())
+        {
+            _DesdeFecha = dialogDesdeFecha.value();
+            _HastaFecha = dialogHastaFecha.value();
+              _InventLocationId = dialogAlmacen.value();
+
+
+            //borro la tabla de valoración
+//            delete_from _QInventValue where _QInventValue.DesdeFecha == _desdefecha && _QInventValue.HastaFecha == _hastafecha && _QInventValue.Almacen == _inventlocationid;
+            while select forupdate _QInventValue where _QInventValue.DesdeFecha == _desdefecha && _QInventValue.HastaFecha == _hastafecha && _QInventValue.Almacen == _inventlocationid
+            {
+                _qinventvalue.IsDeleted = noyes::Yes;
+                ttsbegin;
+                _qinventvalue.doUpdate();
+                ttscommit;
+             }
+
+
+
+
+                    while select _inventtable
+                    {
+
+
+        //******************************************************INSERTO DATOS DEL ARTÍCULO**************************************************************************************************************
+
+
+
+
+
+
+                            While select inventDimId from _InventTrans2 group by InventDimId  join _InventDim where _inventdim.inventDimId == _inventtrans2.inventDimId && _inventdim.InventLocationId == _inventLocationId
+                                && _INVENTDIM.InventColorId == ''
+
+
+                            {
+                                    _QInventValue.AT_Grupo_Estadistico  = _Inventtable.AT_Grup_Estadistico;
+                                    _QInventValue.ItemGroupId           = _Inventtable.ItemGroupId;
+                                    _QInventValue.ItemId                = _Inventtable.ItemId;
+                                    _QInventValue.ItemName              = _InventTable.NameAlias;
+                                    _QInventValue.ItemNetWeight         = _InventTable.NetWeight;
+                                    if (curext() != '006')
+                                        _QInventValue.LedgerAccount         = _InventTable.AT_CtaExistencias;
+                                    else
+                                       {
+                                          select * from _inventposting where _inventposting.InventAccountType == InventAccountType::InventReceipt && _inventPosting.ItemRelation == _inventtable.ItemGroupId;
+                                          _QInventValue.LedgerAccount     = _InventPosting.LedgerAccountId;
+                                       }
+                                    _QInventValue.ABCValue              = _InventTable.ABCValue;
+                                    _QInventValue.ABCContributionMargin = _InventTable.ABCContributionMargin;
+                                    _QInventValue.ABCRevenue            = _InventTable.ABCRevenue;
+                                    _QInventValue.ABCTieUp              = _InventTable.ABCTieUp;
+
+
+                     //******************************************************INSERTO VALORES INICIALES************************************************************************************************************
+                                    select itemid, qtyTot , NetWeightTot, CostAmountTot from  _QInventValueFinal
+                                    where _QInventValueFinal.ItemId == _InventTable.ItemId
+                                       && _QInventValueFinal.Year == year(_DesdeFecha)
+                                       && _QInventValueFinal.InventDimId ==  _InventTrans2.inventDimId ;
+
+                                    _QInventValue.QtyINI        = 0+ _QInventValueFinal.QtyTot;
+                                    _QInventValue.NetWeightINI  = 0+ _QInventValueFinal.NetWeightTot;
+                                    _QInventValue.CostAmountINI = 0+ _QInventValueFinal.CostAmountTot;
+                                    //_QInventValue.DatePhysical  = _QInventValueFinal.LastDate;
+                                    //_QInventValue.AccountNum    = _QInventValueFinal.Accountnum;
+
+
+                    //******************************************************FECHA DE ULTIMA COMPRA Y ULTIMO PROVEEDOR***********************************************************************************************
+
+
+                                    select custvendac,datefinancial from _InventTrans
+                                    index hint itemidx
+                                    order by datefinancial desc
+                                    where   _InventTrans.InvoiceId     != ''
+                                    &&    _InventTrans.TransType     == 3
+                                    &&    _InventTrans.StatusReceipt == 1
+                                    &&    _InventTrans.inventDimId == _InventTrans2.inventDimId
+                                    &&    _InventTrans.ItemId == _InventTable.ItemId
+                                    &&    _inventtrans.DateFinancial <= _hastafecha;
+
+
+                                    _QInventValue.AccountNum   = _InventTrans.CustVendAC;
+                                    _QInventValue.DatePhysical = _InventTrans.DateFinancial;
+
+
+
+
+
+
+
+                    //******************************************************INSERTO VENTAS************************************************************************************************************************
+
+                                    select itemid, sum(qty), sum(costamountposted), sum(costamountadjustment) from _InventTrans
+                                    index hint itemidx
+                                    group by itemid
+                                    where _InventTrans.DateFinancial >= _DesdeFecha
+                                    &&    _InventTrans.DateFinancial <= _HastaFecha
+                                    &&    _InventTrans.InvoiceId     != ''
+                                    &&    _InventTrans.TransType     == 0
+                                    &&    _InventTrans.inventDimId ==  _InventTrans2.inventDimId
+                                    &&    _InventTrans.InvoiceReturned == 0
+                                    &&    _InventTrans.ItemId == _InventTable.ItemId;
+
+
+                                    _QInventValue.QtyVEN        = 0+ _InventTrans.Qty;
+                                    _QInventValue.NetWeightVEN  = 0+ _InventTrans.Qty * _InventTable.NetWeight;
+                                    _QInventValue.CostAmountVEN = 0+ _InventTrans.CostAmountPosted + _InventTrans.CostAmountAdjustment;
+
+
+                    //******************************************************INSERTO COMPRAS***********************************************************************************************************************
+
+                                    select itemid, sum(qty), sum(costamountposted), sum(costamountadjustment) from _InventTrans
+                                    index hint itemidx
+                                    group by itemid
+                                    where _InventTrans.DateFinancial >= _DesdeFecha
+                                    &&    _InventTrans.DateFinancial <= _HastaFecha
+                                    &&    _InventTrans.InvoiceId     != ''
+                                    &&    _InventTrans.TransType     == 3
+                                    &&    (_InventTrans.StatusReceipt == 1 || _inventtrans.InvoiceReturned == 1)
+                                    &&    _InventTrans.inventDimId ==  _InventTrans2.inventDimId
+                                    &&    _InventTrans.ItemId == _InventTable.ItemId;
+
+
+
+                                    _QInventValue.QtyCOM        = 0+ _InventTrans.Qty;
+                                    _QInventValue.NetWeightCOM  = 0+ _InventTrans.Qty * _InventTable.NetWeight;
+                                    _QInventValue.CostAmountCOM = 0+ _InventTrans.CostAmountPosted + _InventTrans.CostAmountAdjustment;
+
+                    //******************************************************INSERTO DEVOLUCIONES*******************************************************************************************************************
+
+                                    select itemid, sum(qty), sum(costamountposted), sum(costamountadjustment) from _InventTrans
+                                    index hint itemidx
+                                    group by itemid
+                                    where _InventTrans.DateFinancial >= _DesdeFecha
+                                    &&    _InventTrans.DateFinancial <= _HastaFecha
+                                    &&    _InventTrans.InvoiceId     != ''
+                                    &&    _InventTrans.TransType     == 0
+                                    &&    _InventTrans.inventDimId ==  _InventTrans2.inventDimId
+                                    &&    _InventTrans.InvoiceReturned == 1
+                                    &&    _InventTrans.ItemId == _InventTable.ItemId;
+
+                                    _QInventValue.QtyDEV        = 0+ _InventTrans.Qty;
+                                    _QInventValue.NetWeightDEV  = 0+ _InventTrans.Qty * _InventTable.NetWeight;
+                                    _QInventValue.CostAmountDEV = 0+ _InventTrans.CostAmountPosted + _InventTrans.CostAmountAdjustment;
+
+
+                    //******************************************************INSERTO MOVIMIENTOS TRANSACCIÓN************************************************************************************************************
+
+
+
+                                      select itemid, sum(qty), sum(costamountposted), sum(costamountadjustment) from _InventTrans
+                                    index hint itemidx
+                                    group by itemid
+                                    where _InventTrans.DateFinancial >= _DesdeFecha
+                                    &&    _InventTrans.DateFinancial <= _HastaFecha
+                                    &&   ( _InventTrans.TransType     == 4)
+                                    &&    _InventTrans.inventDimId ==  _InventTrans2.inventDimId
+                                    &&    _InventTrans.ItemId == _InventTable.ItemId
+                                    &&    _inventtrans.invoiceid == '';
+
+                                    _QInventValue.QtyMAN       = 0+ _InventTrans.Qty;
+                                    _QInventValue.NetWeightMAN  = 0+ _InventTrans.Qty * _InventTable.NetWeight;
+                                    _QInventValue.CostAmountMAN = 0+ _InventTrans.CostAmountPosted + _InventTrans.CostAmountAdjustment;
+
+      //******************************************************INSERTO MOVIMIENTOS TRANSACCIÓN************************************************************************************************************
+
+
+
+                                      select itemid, sum(qty), sum(costamountposted), sum(costamountadjustment) from _InventTrans
+                                    index hint itemidx
+                                    group by itemid
+                                    where _InventTrans.DateFinancial >= _DesdeFecha
+                                    &&    _InventTrans.DateFinancial <= _HastaFecha
+                                    &&   ( _InventTrans.TransType     == 5)
+                                    &&    _InventTrans.inventDimId ==  _InventTrans2.inventDimId
+                                    &&    _InventTrans.ItemId == _InventTable.ItemId;
+
+                                    _QInventValue.QtyPyG       = 0+ _InventTrans.Qty;
+                                    _QInventValue.NetWeightPYG = 0+ _InventTrans.Qty * _InventTable.NetWeight;
+                                    _QInventValue.CostAmountPYG = 0+ _InventTrans.CostAmountPosted + _InventTrans.CostAmountAdjustment;
+
+                                    select itemid, sum(qty), sum(costamountposted), sum(costamountadjustment) from _InventTrans //La transacción que regulariza una nota de abono
+                                    index hint itemidx
+                                    group by itemid
+                                    where _InventTrans.DateFinancial > _DesdeFecha
+                                    &&    _InventTrans.DateFinancial <= _HastaFecha
+                                    &&   ( _InventTrans.TransType     == 4)
+                                    &&    _InventTrans.inventDimId ==  _InventTrans2.inventDimId
+                                    &&    _InventTrans.ItemId == _InventTable.ItemId
+                                    &&    _inventtrans.invoiceid != '';
+
+                                    _QInventValue.QtyPyG        += _InventTrans.Qty;
+                                    _QInventValue.NetWeightPYG  += _InventTrans.Qty * _InventTable.NetWeight;
+                                    _QInventValue.CostAmountPYG += _InventTrans.CostAmountPosted + _InventTrans.CostAmountAdjustment;
+
+
+
+ //******************************************************INSERTO MOVIMIENTOS TRANSACCIÓN************************************************************************************************************
+
+
+
+                                      select itemid, sum(qty), sum(costamountposted), sum(costamountadjustment) from _InventTrans
+                                    index hint itemidx
+                                    group by itemid
+                                    where _InventTrans.DateFinancial >= _DesdeFecha
+                                    &&    _InventTrans.DateFinancial <= _HastaFecha
+                                    &&   ( _InventTrans.TransType     == 6)
+                                    &&    _InventTrans.inventDimId ==  _InventTrans2.inventDimId
+                                    &&    _InventTrans.ItemId == _InventTable.ItemId;
+
+                                    _QInventValue.QtyTRA      = 0+ _InventTrans.Qty;
+                                    _QInventValue.NetWeightTRA  = 0+ _InventTrans.Qty * _InventTable.NetWeight;
+                                    _QInventValue.CostAmountTRA = 0+ _InventTrans.CostAmountPosted + _InventTrans.CostAmountAdjustment;
+//*****************************************************************
+
+
+
+                                    //CALCULO TOTALES
+
+                                    _QInventValue.QtyTOT       = 0+ _QInventValue.QtyINI +_QInventValue.QtyVEN + _QInventValue.QtyCOM + _QInventValue.QtyDEV + _QInventValue.QtyMAN + _QInventValue.QtyPYG + _QInventValue.QtyTRA;
+                                    _QInventValue.NetWeightTOT = 0+ _QInventValue.NetWeightINI +_QInventValue.NetWeightVEN + _QInventValue.NetWeightCOM + _QInventValue.NetWeightDEV +
+                                        _QInventValue.NetWeightMAN + _QInventValue.NetWeightPYG + _QInventValue.NetWeightTRA ;
+                                    _QInventValue.CostAmountTOT= 0+ _QInventValue.CostAmountINI +_QInventValue.CostAmountVEN + _QInventValue.CostAmountCOM + _QInventValue.CostAmountDEV + _QInventValue.CostAmountMAN
+                                        + _QInventValue.CostAmountPYG + _QInventValue.CostAmountTRA ;
+                                    _QInventValue.Almacen      =  InventDim::find(_InventTrans2.inventDimId).InventLocationId;
+                                    _QInventValue.DesdeFecha   = _DesdeFecha;
+                                    _QInventValue.HastaFecha   = _HastaFecha;
+                                    _QInventValue.Usuario      = curuserid();
+
+                                    if (_QInventValue.QtyINI == 0 && _QInventValue.CostAmountINI == 0 && _QInventValue.QtyVEN == 0 && _QInventValue.QtyCOM == 0 && _QInventValue.QtyDev == 0 && _QInventValue.QtyMan == 0
+                                         && _QInventValue.QtyPYG == 0 && _QInventValue.QtyTRA == 0)
+                                        _QInventValue.clear();
+                                    else
+
+                                       _QInventValue.insert();
+
+                                    _QInventValue.clear();
+
+                                     progress.incCount(1);
+
+
+
+                                }
+
+                       }
+
+            }
+
+
+                  progress.kill();
+                  info ("FIN");
+
+
+
+}
